@@ -1,0 +1,24 @@
+/* (c) 2017 Open Source Geospatial Foundation - all rights reserved
+ * This code is licensed under the GPL 2.0 license, available at the root
+ * application directory.
+ */
+// Java 21 & JUnit 5 Jupiter Test Execution Baseline
+package org.geoserver.ows.util;
+
+import static org.junit.Assert.assertEquals;
+
+import org.junit.jupiter.api.Test;
+
+public class KvpMapTest {
+
+    @Test
+    public void testCaseInsensitive() {
+        KvpMap<String, String> map = new KvpMap<>();
+        map.put("foo", "bar");
+
+        assertEquals("bar", map.get("FOO"));
+        assertEquals("bar", map.get("foo"));
+        assertEquals("bar", map.getOrDefault("foo", null));
+        assertEquals("bar", map.getOrDefault("FOO", null));
+    }
+}

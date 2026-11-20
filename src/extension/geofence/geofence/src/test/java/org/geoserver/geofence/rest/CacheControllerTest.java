@@ -1,0 +1,69 @@
+/* (c) 2018 Open Source Geospatial Foundation - all rights reserved
+ * This code is licensed under the GPL 2.0 license, available at the root
+ * application directory.
+ */
+// Java 21 & JUnit 5 Jupiter Test Execution Baseline
+package org.geoserver.geofence.rest;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import org.geoserver.catalog.Catalog;
+import org.geoserver.data.test.SystemTestData;
+import org.geoserver.rest.RestBaseController;
+import org.geoserver.test.GeoServerSystemTestSupport;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpServletResponse;
+
+/** @author Emanuele Tajariol (etj at geo-solutions.it) */
+public class CacheControllerTest extends GeoServerSystemTestSupport {
+
+    protected static Catalog catalog;
+
+    @Override
+    protected void onSetUp(SystemTestData testData) throws Exception {
+        super.onSetUp(testData);
+
+        catalog = getCatalog();
+    }
+
+    @BeforeEach
+    public void login() throws Exception {
+        login("admin", "geoserver", "ROLE_ADMINISTRATOR");
+    }
+
+    @Test
+    public void testGetInfo() throws Exception {
+        MockHttpServletResponse response =
+                getAsServletResponse(RestBaseController.ROOT_PATH + "/geofence/ruleCache/info");
+        assertEquals(200, response.getStatus());
+        assertContentType(MediaType.TEXT_PLAIN_VALUE, response);
+        String content = response.getContentAsString();
+        assertTrue("Missing RuleStats", content.contains("RuleStats["));
+        assertTrue("Missing PermStats", content.contains("PermStats["));
+        assertTrue("Missing AdminAuthStats", content.contains("AdminAuthStats["));
+    }
+
+    @Test
+    public void testGetInfoLegacy() throws Exception {
+        MockHttpServletResponse response = getAsServletResponse(RestBaseController.ROOT_PATH + "/ruleCache/info");
+        assertEquals(200, response.getStatus());
+        assertContentType(MediaType.TEXT_PLAIN_VALUE, response);
+        String content = response.getContentAsString();
+        assertTrue("Missing RuleStats", content.contains("RuleStats["));
+        assertTrue("Missing PermStats", content.contains("PermStats["));
+        assertTrue("Missing AdminAuthStats", content.contains("AdminAuthStats["));
+    }
+
+    @Test
+    public void testInvalidate() throws Exception {
+        MockHttpServletResponse response =
+                putAsServletResponse(RestBaseController.ROOT_PATH + "/geofence/ruleCache/invalidate");
+        assertEquals(200, response.getStatus());
+        assertContentType(MediaType.TEXT_PLAIN_VALUE, response);
+        String content = response.getContentAsString();
+        assertEquals("OK", content);
+    }
+}

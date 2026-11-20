@@ -1,0 +1,35 @@
+
+ <!--
+ Copyright (C) 2014 - 2016 Open Source Geospatial Foundation. All rights reserved.
+ This code is licensed under the GPL 2.0 license, available at the root
+ application directory.
+ -->
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans https://www.springframework.org/schema/beans/spring-beans.xsd">
+    <bean id="wmsGetFeatureInfoGML2" class="org.geoserver.wms.featureinfo.GML2FeatureInfoOutputFormat">
+      <constructor-arg ref="wms" />
+    </bean>
+
+    <bean id="wmsGetFeatureInfoXML2" class="org.geoserver.wms.featureinfo.XML2FeatureInfoOutputFormat">
+      <constructor-arg ref="wms" />
+    </bean>
+    
+    <bean id="wmsGetFeatureInfoGML3" class="org.geoserver.wms.featureinfo.GML3FeatureInfoOutputFormat">
+      <constructor-arg ref="gml3OutputFormat" />
+    </bean>
+
+    <bean id="wmsGetFeatureInfoXML311" class="org.geoserver.wms.featureinfo.XML311FeatureInfoOutputFormat">
+      <constructor-arg ref="gml3OutputFormat" />
+    </bean>
+
+    <bean id="wmsFilterKvpParser" class="org.geoserver.wms.kvp.FilterKvpParser">
+        <constructor-arg ref="entityResolverProvider"/>
+        <property name="service"><value>WMS</value></property>
+    </bean>
+    <bean id="wmsGmlModule" class="org.geoserver.platform.ModuleStatusImpl">
+        <constructor-arg index="0" value="gs-wms-gml"/>
+        <constructor-arg index="1" value="GeoServer WMS GML Feature Info"/>
+        <property name="category" value="CORE"/>
+    </bean>
+</beans>

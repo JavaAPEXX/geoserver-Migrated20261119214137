@@ -1,0 +1,61 @@
+---
+render_macros: true
+---
+
+
+# OGC API - Styles
+
+A [OGC Styles API](https://github.com/opengeospatial/ogcapi-styles) based on the early draft of this specification.
+
+This service describes, retrieves and updates the styles present on the server. Styles are cross linked with their associated collections in both the Features and Tiles API.
+
+## OGC API - Styles Implementation status
+
+| [OGC API - Styles](https://github.com/opengeospatial/ogcapi-styles) | Version | Implementation status |
+|----|----|----|
+| Part 1: Core | [Draft](http://docs.opengeospatial.org/DRAFTS/20-009.md) | Implementation based on early specification draft. |
+
+## Installing the GeoServer OGC API - Styles module
+
+1.  Login, and navigate to **About & Status > About GeoServer** and check **Build Information** to determine the exact version of GeoServer you are running.
+
+2.  Visit the [website download](https://geoserver.org/download) page, change the **Development** tab, and locate the nightly release that corresponds to the GeoServer you are running.
+
+    Follow the **Community Modules** link and download `ogcapi-styles` zip archive.
+
+    - {{ snapshot }} example: [ogcapi-styles]({{ nightly_community }}ogcapi-styles-plugin.zip)
+
+    The website lists active nightly builds to provide feedback to developers, you may also [browse](https://build.geoserver.org/geoserver/) for earlier branches.
+
+3.  Extract the contents of the archive into the **`WEB-INF/lib`** directory in GeoServer.
+
+    !!! warning
+        Verify that the version number in the filename corresponds to the version of GeoServer you are running (for example geoserver-{{ snapshot }}-ogcapi-styles-plugin.zip above).
+
+4.  Restart GeoServer.
+
+    On restart the services are listed at <http://localhost:8080/geoserver>
+
+## Configuration of OGC API - Styles module
+
+The module exposes all available GeoServer styles. Its settings are on the **Services > Styles** page in the admin UI, on the **Styles** tab.
+
+### Conformance classes
+
+Use the provided [Conformance table](../../../configuration/ogc-api-services/index.md#conformance) to manage the conformance classes.
+
+The service always supports reading styles, as Mapbox styles, SLD 1.0 and SLD 1.1. These classes are always enabled and are listed in the conformance declaration.
+
+The **Manage styles** conformance class allows clients to create, update and delete styles, and to update style metadata. It is disabled by default.
+
+Managing styles changes the GeoServer catalog, so decide who may do it before enabling the class. Service security rules control this, in **Security > Services** or in `security/services.properties`. A good starting point allows only administrators:
+
+```
+styles.addStyle=ROLE_ADMINISTRATOR
+styles.updateStyle=ROLE_ADMINISTRATOR
+styles.deleteStyle=ROLE_ADMINISTRATOR
+styles.updateStyleMetadata=ROLE_ADMINISTRATOR
+styles.patchStyleMetadata=ROLE_ADMINISTRATOR
+```
+
+Add other roles to these rules to allow more users to manage styles. Use a rule for each operation, as above: a `styles.*` rule also applies to the operations that read styles.

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.geoserver</groupId>
+    <artifactId>community</artifactId>
+    <version>${revision}</version>
+  </parent>
+
+  <groupId>org.geoserver.community</groupId>
+  <artifactId>gs-jms-cluster-container</artifactId>
+  <packaging>pom</packaging>
+
+  <name>GeoServer JMS based clustering modules</name>
+
+  <properties>
+    <amq.version>6.2.5</amq.version>
+  </properties>
+
+  <!-- Apache Maven Repository needed for JMS dependencies cached in OSGeo Relesaes -->
+  <profiles>
+    <profile>
+      <id>cluster</id>
+
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+
+      <modules>
+        <module>jms-commons</module>
+        <module>jms-geoserver</module>
+      </modules>
+    </profile>
+  </profiles>
+</project>

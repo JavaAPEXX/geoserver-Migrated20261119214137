@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.geoserver.community</groupId>
+    <artifactId>gs-backup-restore</artifactId>
+    <version>${revision}</version>
+  </parent>
+
+  <groupId>org.geoserver.community.backuprestore</groupId>
+  <artifactId>gs-backup-restore-core</artifactId>
+  <packaging>jar</packaging>
+  <name>GeoServer Config Backup And Restore Core Module</name>
+
+  <properties>
+    <spring.batch.version>6.0.3</spring.batch.version>
+  </properties>
+
+  <dependencies>
+
+    <!-- Spring dependencies -->
+    <dependency>
+      <groupId>org.springframework.integration</groupId>
+      <artifactId>spring-integration-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-messaging</artifactId>
+    </dependency>
+
+    <!-- Spring Batch dependencies -->
+    <dependency>
+      <groupId>org.springframework.batch</groupId>
+      <artifactId>spring-batch-core</artifactId>
+      <version>${spring.batch.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.batch</groupId>
+      <artifactId>spring-batch-infrastructure</artifactId>
+      <version>${spring.batch.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.batch</groupId>
+      <artifactId>spring-batch-integration</artifactId>
+      <version>${spring.batch.version}</version>
+    </dependency>
+
+    <!--
+      Embedded database backing the in-memory Spring Batch job repository (see
+      backup-batch-context.xml). Spring Batch 5 removed the Map-based in-memory repository, so an
+      embedded H2 seeded with the Batch metadata schema is the supported replacement. Runtime scope:
+      H2 is only referenced from Spring XML, never compiled against. The version is left to GeoServer's
+      managed dependencies so it stays aligned with the H2 used elsewhere (e.g. gt-jdbc-h2).
+    -->
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
+    <!-- GeoServer Dependencies -->
+    <dependency>
+      <groupId>org.geoserver</groupId>
+      <artifactId>gs-gwc</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <!-- REST Resources -->
+    <dependency>
+      <groupId>org.geoserver</groupId>
+      <artifactId>gs-restconfig</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-fileupload2-jakarta-servlet6</artifactId>
+    </dependency>
+
+    <!-- Spring Batch unit test -->
+    <dependency>
+      <groupId>org.springframework.batch</groupId>
+      <artifactId>spring-batch-test</artifactId>
+      <version>${spring.batch.version}</version>
+    </dependency>
+
+    <!-- Integration test: backup/restore round-trip against a real PostGIS store (Testcontainers) -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.geotools.jdbc</groupId>
+      <artifactId>gt-jdbc-postgis</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- GeoPackage store backing the "foo" join fixture in BackupRestoreTestSupport (replaces the unmaintained
+         geodb-H2 store, which no longer works on the H2 2.x the Spring Batch migration pulls in). -->
+    <dependency>
+      <groupId>org.geotools</groupId>
+      <artifactId>gt-geopkg</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Other Dependencies -->
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-exec</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-vfs2</artifactId>
+    </dependency>
+
+  </dependencies>
+
+</project>

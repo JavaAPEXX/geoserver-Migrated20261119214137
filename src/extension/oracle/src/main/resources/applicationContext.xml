@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+ Copyright (C) 2021 - Open Source Geospatial Foundation. All rights reserved.
+ This code is licensed under the GPL 2.0 license, available at the root
+ application directory.
+ -->
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans https://www.springframework.org/schema/beans/spring-beans.xsd">
+  <bean id="oracleDbExtension" class="org.geoserver.platform.LibraryModuleStatus">
+    <constructor-arg index="0" value="gs-oracle"/>
+    <constructor-arg index="1" value="Oracle DB Extension"/>
+    <constructor-arg index="2" value="Oracle JDBC driver"/>
+    <constructor-arg index="3" value="oracle.jdbc.OracleDriver"/>
+    <property name="component" value="Oracle DB extension"/>
+    <property name="documentation" value="data/database/oracle.html"/>
+    <property name="category" value="EXTENSION"/>
+  </bean>
+ 
+</beans>

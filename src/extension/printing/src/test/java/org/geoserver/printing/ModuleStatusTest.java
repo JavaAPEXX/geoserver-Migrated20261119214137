@@ -1,0 +1,41 @@
+/* (c) 2021 Open Source Geospatial Foundation - all rights reserved
+ * This code is licensed under the GPL 2.0 license, available at the root
+ * application directory.
+ */
+// Java 21 & JUnit 5 Jupiter Test Execution Baseline
+package org.geoserver.printing;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
+import java.util.Optional;
+import org.geoserver.platform.GeoServerExtensions;
+import org.geoserver.platform.ModuleStatus;
+import org.geotools.util.factory.GeoTools;
+import org.junit.jupiter.api.Test;
+import org.mapfish.print.MapPrinter;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+public class ModuleStatusTest {
+    @Test
+    public void test() {
+        try (ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("applicationContext.xml")) {
+            assertNotNull(context);
+
+            Optional<ModuleStatus> status = GeoServerExtensions.extensions(ModuleStatus.class, context).stream()
+                    .filter(s -> s.getModule().equalsIgnoreCase("gs-printing"))
+                    .findFirst();
+            assertTrue(status.isPresent());
+            assertEquals(ModuleStatus.Category.EXTENSION, status.get().getCategory());
+            assertEquals(
+                    "mapfish-print-v2 version: " + GeoTools.getVersion(MapPrinter.class),
+                    status.get().getMessage().orElseThrow());
+        }
+    }
+
+    @Test
+    public void testMapfishVersion() {
+        assertNotNull(GeoTools.getVersion(MapPrinter.class));
+    }
+}

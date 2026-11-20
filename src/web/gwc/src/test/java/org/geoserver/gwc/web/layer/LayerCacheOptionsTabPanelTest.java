@@ -1,0 +1,396 @@
+/* (c) 2014 - 2016 Open Source Geospatial Foundation - all rights reserved
+ * (c) 2001 - 2013 OpenPlans
+ * This code is licensed under the GPL 2.0 license, available at the root
+ * application directory.
+ */
+// Java 21 & JUnit 5 Jupiter Test Execution Baseline
+package org.geoserver.gwc.web.layer;
+
+import static org.geoserver.gwc.GWC.tileLayerName;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import org.apache.wicket.Component;
+import org.apache.wicket.markup.html.basic.Label;
+import org.apache.wicket.markup.html.list.ListItem;
+import org.apache.wicket.markup.html.list.ListView;
+import org.apache.wicket.model.IModel;
+import org.apache.wicket.model.Model;
+import org.apache.wicket.util.tester.FormTester;
+import org.apache.wicket.util.visit.IVisitor;
+import org.geoserver.catalog.LayerInfo;
+import org.geoserver.data.test.MockData;
+import org.geoserver.gwc.GWC;
+import org.geoserver.gwc.config.GWCConfig;
+import org.geoserver.gwc.layer.CatalogConfiguration;
+import org.geoserver.gwc.layer.GeoServerTileLayer;
+import org.geoserver.gwc.layer.GeoServerTileLayerInfo;
+import org.geoserver.gwc.layer.GeoServerTileLayerInfoImpl;
+import org.geoserver.gwc.layer.TileLayerInfoUtil;
+import org.geoserver.util.DimensionWarning.WarningType;
+import org.geoserver.web.ComponentBuilder;
+import org.geoserver.web.FormTestPage;
+import org.geoserver.web.GeoServerWicketTestSupport;
+import org.geowebcache.layer.TileLayer;
+import org.hamcrest.Matchers;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+public class LayerCacheOptionsTabPanelTest extends GeoServerWicketTestSupport {
+
+    private IModel<LayerInfo> layerModel;
+
+    private GeoServerTileLayerInfoModel tileLayerModel;
+
+    @BeforeEach
+    public void setUpInternal() {
+        LayerInfo layerInfo = getCatalog().getLayerByName(getLayerId(MockData.BUILDINGS));
+        assertTrue(CatalogConfiguration.isLayerExposable(layerInfo));
+        GeoServerTileLayer tileLayer = GWC.get().getTileLayer(layerInfo);
+        assertNotNull(tileLayer);
+        layerModel = new Model<>(layerInfo);
+        tileLayerModel = new GeoServerTileLayerInfoModel(tileLayer.getInfo(), false);
+        // clean up fake format added during tests
+        tileLayer.getInfo().getMimeFormats().remove("foo/bar");
+        tileLayer.getInfo().setMemoryCached(false);
+    }
+
+    @Test
+    public void testPageLoad() {
+        tester.startPage(new FormTestPage(new ComponentBuilder() {
+            private static final long serialVersionUID = -5907648151984337786L;
+
+            @Override
+            public Component buildComponent(final String id) {
+                return new LayerCacheOptionsTabPanel(id, layerModel, tileLayerModel);
+            }
+        }));
+
+        tester.assertComponent("form:panel", LayerCacheOptionsTabPanel.class);
+        tester.assertComponent("form:panel:tileLayerEditor", GeoServerTileLayerEditor.class);
+    }
+
+    @Test
+    public void testPageLoadForGeometrylessLayer() {
+        LayerInfo geometryless = getCatalog().getLayerByName(super.getLayerId(MockData.GEOMETRYLESS));
+
+        assertFalse(CatalogConfiguration.isLayerExposable(geometryless));
+        assertNull(GWC.get().getTileLayer(geometryless));
+
+        layerModel = new Model<>(geometryless);
+        final GWCConfig saneDefaults = GWC.get().getConfig().saneConfig();
+        GeoServerTileLayerInfoImpl tileLayerInfo = TileLayerInfoUtil.loadOrCreate(geometryless, saneDefaults);
+        tileLayerModel = new GeoServerTileLayerInfoModel(tileLayerInfo, false);
+
+        tester.startPage(new FormTestPage(new ComponentBuilder() {
+            private static final long serialVersionUID = -5907648151984337786L;
+
+            @Override
+            public Component buildComponent(final String id) {
+                return new LayerCacheOptionsTabPanel(id, layerModel, tileLayerModel);
+            }
+        }));
+
+        tester.assertComponent("form:panel", LayerCacheOptionsTabPanel.class);
+        // Label instead of GeoServerTileLayerEditor
+        tester.assertComponent("form:panel:tileLayerEditor", Label.class);
+    }
+
+    @Test
+    public void testSaveExisting() {
+        tester.startPage(new FormTestPage(new ComponentBuilder() {
+            private static final long serialVersionUID = -6705646666953650890L;
+
+            @Override
+            public Component buildComponent(final String id) {
+                return new LayerCacheOptionsTabPanel(id, layerModel, tileLayerModel);
+            }
+        }));
+
+        tester.assertComponent("form:panel", LayerCacheOptionsTabPanel.class);
+
+        GeoServerTileLayerInfo info = tileLayerModel.getObject();
+        info.setEnabled(!info.isEnabled());
+
+        LayerCacheOptionsTabPanel panel =
+                (LayerCacheOptionsTabPanel) tester.getComponentFromLastRenderedPage("form:panel");
+        panel.save();
+
+        TileLayer tileLayer = GWC.get().getTileLayerByName(info.getName());
+        GeoServerTileLayerInfo actual = ((GeoServerTileLayer) tileLayer).getInfo();
+        assertEquals(info.isEnabled(), actual.isEnabled());
+    }
+
+    @Test
+    public void testSaveNew() {
+        GWC mediator = GWC.get();
+        mediator.removeTileLayers(Arrays.asList(tileLayerModel.getObject().getName()));
+
+        assertNull(mediator.getTileLayer(layerModel.getObject()));
+
+        GeoServerTileLayerInfo newInfo = TileLayerInfoUtil.loadOrCreate(layerModel.getObject(), mediator.getConfig());
+
+        tileLayerModel = new GeoServerTileLayerInfoModel(newInfo, true);
+
+        tester.startPage(new FormTestPage(new ComponentBuilder() {
+            private static final long serialVersionUID = -6705646666953650890L;
+
+            @Override
+            public Component buildComponent(final String id) {
+                return new LayerCacheOptionsTabPanel(id, layerModel, tileLayerModel);
+            }
+        }));
+
+        tester.assertComponent("form:panel", LayerCacheOptionsTabPanel.class);
+
+        LayerCacheOptionsTabPanel panel =
+                (LayerCacheOptionsTabPanel) tester.getComponentFromLastRenderedPage("form:panel");
+
+        panel.save();
+        // Ensure the GeoServerTileLayerInfoModel is updated
+        assertNotNull(tileLayerModel.getEnabled());
+        assertTrue(tileLayerModel.getEnabled().booleanValue());
+        assertNotNull(mediator.getTileLayer(layerModel.getObject()));
+    }
+
+    @Test
+    public void testDontSaveNew() throws IOException {
+        // Method for testing that if the createTileLayer checkbox is disabled, no TileLayer is
+        // configured
+        GWC mediator = GWC.get();
+        // Save the old GeoServerTileLayer
+        GeoServerTileLayer tileLayer = (GeoServerTileLayer)
+                mediator.getTileLayerByName(tileLayerModel.getObject().getName());
+        // Remove the tileLayer
+        mediator.removeTileLayers(Arrays.asList(tileLayerModel.getObject().getName()));
+        assertNull(mediator.getTileLayer(layerModel.getObject()));
+
+        // Update the configuration in order to set default caching
+        GWCConfig config = mediator.getConfig();
+        boolean defaultCaching = config.isCacheLayersByDefault();
+        config.setCacheLayersByDefault(true);
+        mediator.saveConfig(config);
+
+        // Create the new Layer
+        GeoServerTileLayerInfo newInfo = TileLayerInfoUtil.loadOrCreate(layerModel.getObject(), mediator.getConfig());
+
+        tileLayerModel = new GeoServerTileLayerInfoModel(newInfo, true);
+
+        tester.startPage(new FormTestPage(new ComponentBuilder() {
+            private static final long serialVersionUID = -6705646666953650890L;
+
+            @Override
+            public Component buildComponent(final String id) {
+                return new LayerCacheOptionsTabPanel(id, layerModel, tileLayerModel);
+            }
+        }));
+
+        tester.assertComponent("form:panel", LayerCacheOptionsTabPanel.class);
+
+        tester.isVisible("form:panel:tileLayerEditor:container:configs");
+
+        // Avoid saving the Layer
+        FormTester formTester = tester.newFormTester("form");
+        formTester.setValue("panel:tileLayerEditor:container:createTileLayer", false);
+
+        tester.executeAjaxEvent("form:panel:tileLayerEditor:container:createTileLayer", "change");
+
+        tester.isInvisible("form:panel:tileLayerEditor:container:configs");
+
+        LayerCacheOptionsTabPanel panel =
+                (LayerCacheOptionsTabPanel) tester.getComponentFromLastRenderedPage("form:panel");
+
+        formTester.getForm().onFormSubmitted(null); // This is an utter hack but is the only way I could
+        // figure out to exercise the validators the same
+        // way that happens in a live GeoServer
+
+        panel.save();
+
+        // Ensure the GeoServerTileLayerInfoModel is updated
+        assertNotNull(tileLayerModel.getEnabled());
+        assertFalse(tileLayerModel.getEnabled().booleanValue());
+        assertNull(mediator.getTileLayer(layerModel.getObject()));
+
+        // Back to the default configuration
+        config.setCacheLayersByDefault(defaultCaching);
+        mediator.saveConfig(config);
+
+        // Save the initial Layer again for other tests
+        mediator.add(tileLayer);
+    }
+
+    @Test
+    public void testRemoveExisting() {
+
+        LayerInfo layerInfo = getCatalog().getLayerByName(getLayerId(MockData.LAKES));
+        GeoServerTileLayer tileLayer = GWC.get().getTileLayer(layerInfo);
+        assertNotNull(tileLayer);
+        layerModel = new Model<>(layerInfo);
+        tileLayerModel = new GeoServerTileLayerInfoModel(tileLayer.getInfo(), false);
+
+        GWC mediator = GWC.get();
+
+        assertNotNull(mediator.getTileLayer(layerModel.getObject()));
+
+        tester.startPage(new FormTestPage(new ComponentBuilder() {
+            private static final long serialVersionUID = -6705646666953650890L;
+
+            @Override
+            public Component buildComponent(final String id) {
+                return new LayerCacheOptionsTabPanel(id, layerModel, tileLayerModel);
+            }
+        }));
+
+        tester.assertComponent("form:panel", LayerCacheOptionsTabPanel.class);
+
+        // mimic what the editor does to remove a tile layer associated with a layer info
+        // print(tester.getComponentFromLastRenderedPage("form:panel"), true, true);
+        FormTester formTester = tester.newFormTester("form");
+        formTester.setValue("panel:tileLayerEditor:container:createTileLayer", false);
+
+        formTester.submit();
+
+        LayerCacheOptionsTabPanel panel =
+                (LayerCacheOptionsTabPanel) tester.getComponentFromLastRenderedPage("form:panel");
+
+        panel.save();
+
+        assertNull(mediator.getTileLayer(layerModel.getObject()));
+
+        // restore, tests can run in any order
+        addTileLayer(layerInfo);
+    }
+
+    @Test
+    public void testAddNullFilter() {
+        // Create a form page for the LayerCacheOptionsTabPanel component
+        FormTestPage page = new FormTestPage(new ComponentBuilder() {
+            private static final long serialVersionUID = -5907648151984337786L;
+
+            @Override
+            public Component buildComponent(final String id) {
+                return new LayerCacheOptionsTabPanel(id, layerModel, tileLayerModel);
+            }
+        });
+        // Start the page
+        tester.startPage(page);
+        // Ensure the GeoServerTileLayerEditor is rendered
+        tester.assertComponent("form:panel:tileLayerEditor", GeoServerTileLayerEditor.class);
+        // Click on the addFilter button withou setting any filter
+        tester.executeAjaxEvent("form:panel:tileLayerEditor:container:configs:parameterFilters:addFilter", "click");
+        // Ensure that the Component is rendered again
+        tester.assertComponent("form:panel:tileLayerEditor", GeoServerTileLayerEditor.class);
+        // Ensure that an Error message has been thrown
+        tester.assertErrorMessages("Filter should not be empty");
+        // Create new form tester for the final submit
+        FormTester form = tester.newFormTester("form");
+        // Save the changes
+        form.submit();
+        // Check no exception has been thrown
+        tester.assertNoErrorMessage();
+    }
+
+    @Test
+    public void testExtraFormat() {
+        tileLayerModel.getObject().getMimeFormats().add("foo/bar");
+
+        tester.startPage(new FormTestPage(new ComponentBuilder() {
+            private static final long serialVersionUID = -6705646666953650890L;
+
+            @Override
+            public Component buildComponent(final String id) {
+                return new LayerCacheOptionsTabPanel(id, layerModel, tileLayerModel);
+            }
+        }));
+
+        // print(tester.getLastRenderedPage(), true, true);
+
+        ListView component = (ListView) tester.getComponentFromLastRenderedPage(
+                "form:panel:tileLayerEditor:container:configs:cacheFormatsGroup:cacheFormats");
+        Set<String> formatsInUI = new HashSet<>();
+        component.visitChildren(ListItem.class, (IVisitor<ListItem, Void>) (object, visit) -> {
+            formatsInUI.add(object.getDefaultModelObjectAsString());
+        });
+        assertThat(formatsInUI, Matchers.hasItem("foo/bar"));
+    }
+
+    @Test
+    public void testSaveWarningSkips() {
+        // Create a form page for the LayerCacheOptionsTabPanel component
+        FormTestPage page = new FormTestPage(id -> new LayerCacheOptionsTabPanel(id, layerModel, tileLayerModel));
+
+        // Start the page
+        tester.startPage(page);
+        tester.assertComponent("form:panel:tileLayerEditor", GeoServerTileLayerEditor.class);
+
+        FormTester ft = tester.newFormTester("form");
+        String checksPath = "panel:tileLayerEditor:container:configs:warningSkips:warningSkipsGroup";
+        ft.select(checksPath, 0);
+        ft.select(checksPath, 2);
+        ft.submit();
+
+        tester.assertNoErrorMessage();
+
+        // check skips have been configured
+        GeoServerTileLayer tileLayer =
+                (GeoServerTileLayer) GWC.get().getTileLayerByName(getLayerId(MockData.BUILDINGS));
+        assertNotNull(tileLayer);
+        assertThat(
+                tileLayer.getInfo().getCacheWarningSkips(),
+                Matchers.containsInAnyOrder(WarningType.Default, WarningType.FailedNearest));
+    }
+
+    @Test
+    public void testSaveMemoryCached() {
+        tester.startPage(new FormTestPage(id -> new LayerCacheOptionsTabPanel(id, layerModel, tileLayerModel)));
+
+        FormTester ft = tester.newFormTester("form");
+        ft.setValue("panel:tileLayerEditor:container:configs:memoryCached", true);
+        ft.submit();
+
+        tester.assertNoErrorMessage();
+        TileLayer tileLayer = GWC.get().getTileLayerByName(getLayerId(MockData.BUILDINGS));
+        assertTrue(tileLayer.isMemoryCached());
+    }
+
+    @Test
+    public void testCreateCheckboxShownWhenLayerHasNoCache() {
+        // an existing layer with no cached layer yet: the creation checkbox is the only control shown
+        LayerInfo lakes = getCatalog().getLayerByName(getLayerId(MockData.LAKES));
+        GeoServerTileLayer lakesLayer = GWC.get().getTileLayer(lakes);
+        if (lakesLayer != null) GWC.get().removeTileLayers(Arrays.asList(tileLayerName(lakes)));
+        assertNull(GWC.get().getTileLayer(lakes));
+        layerModel = new Model<>(lakes);
+        tileLayerModel = new GeoServerTileLayerInfoModel(new GeoServerTileLayerInfoImpl(), false);
+        tester.startPage(new FormTestPage(id -> new LayerCacheOptionsTabPanel(id, layerModel, tileLayerModel)));
+
+        String editor = "form:panel:tileLayerEditor";
+        tester.assertVisible(editor + ":container:createTileLayer");
+        tester.assertInvisible(editor + ":container:configs");
+
+        FormTester ft = tester.newFormTester("form");
+        ft.setValue("panel:tileLayerEditor:container:createTileLayer", true);
+        tester.executeAjaxEvent(editor + ":container:createTileLayer", "change");
+
+        tester.assertVisible(editor + ":container:configs");
+        tester.assertVisible(editor + ":container:configs:cachedGridsets");
+
+        // restore, tests can run in any order
+        if (lakesLayer != null) addTileLayer(lakes);
+    }
+
+    /** Recreates the tile layer of the given layer with the default settings */
+    private void addTileLayer(LayerInfo layerInfo) {
+        GWC mediator = GWC.get();
+        GeoServerTileLayerInfo info = TileLayerInfoUtil.loadOrCreate(layerInfo, mediator.getConfig());
+        mediator.add(new GeoServerTileLayer(layerInfo, mediator.getGridSetBroker(), info));
+    }
+}

@@ -1,0 +1,34 @@
+/* (c) 2014 Open Source Geospatial Foundation - all rights reserved
+ * (c) 2001 - 2013 OpenPlans
+ * This code is licensed under the GPL 2.0 license, available at the root
+ * application directory.
+ */
+// Java 21 & JUnit 5 Jupiter Test Execution Baseline
+package org.geoserver.data.test;
+
+import java.io.File;
+import java.io.IOException;
+import org.geoserver.test.IOTestUtils;
+import org.geoserver.util.IOUtils;
+
+public class LiveSystemTestData extends SystemTestData {
+
+    protected File source;
+
+    public LiveSystemTestData(File source) throws IOException {
+        this.source = source;
+    }
+
+    @Override
+    public void setUp() throws Exception {
+        data = IOTestUtils.createRandomDirectory("./target", "live");
+        IOUtils.deepCopy(source, data);
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        if (data != null) {
+            IOUtils.delete(data);
+        }
+    }
+}

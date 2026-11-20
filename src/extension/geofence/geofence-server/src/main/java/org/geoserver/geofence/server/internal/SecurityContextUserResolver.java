@@ -1,0 +1,37 @@
+/* (c) 2015 Open Source Geospatial Foundation - all rights reserved
+ * This code is licensed under the GPL 2.0 license, available at the root
+ * application directory.
+ */
+package org.geoserver.geofence.server.internal;
+
+import java.util.Collections;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.geofence.core.services.spi.UserResolver;
+import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.PropertySource;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+
+/**
+ * Links GeoServer users/roles to internal Geofence server
+ *
+ * @author Niels Charlier
+ */
+@Component
+@Primary
+@PropertySource("classpath*:application.properties")
+public class SecurityContextUserResolver implements UserResolver {
+
+    @Override
+    public Set<String> getRoles(String username) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return (authentication != null && authentication.getAuthorities() != null)
+                ? authentication.getAuthorities().stream()
+                        .map(GrantedAuthority::getAuthority)
+                        .collect(Collectors.toSet())
+                : Collections.emptySet();
+    }
+}

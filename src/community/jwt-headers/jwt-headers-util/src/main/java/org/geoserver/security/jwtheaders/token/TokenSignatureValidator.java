@@ -1,0 +1,99 @@
+/* (c) 2024 Open Source Geospatial Foundation - all rights reserved
+ * This code is licensed under the GPL 2.0 license, available at the root
+ * application directory.
+ */
+
+package org.geoserver.security.jwtheaders.token;
+
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import com.nimbusds.jose.JWSObject;
+import com.nimbusds.jose.JWSVerifier;
+import com.nimbusds.jose.crypto.RSASSAVerifier;
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.RSAKey;
+import java.net.URL;
+import java.time.Duration;
+import org.geoserver.security.jwtheaders.JwtConfiguration;
+
+/**
+ * This validates the signature of the JWT.
+ *
+ * <p>We cache two things (both for 1 hour) for performance reasons; 1. The JWKSet endpoint (set of public keys we use
+ * to check the signature). 2. The tokens whose signature was verified, keyed by the key set URL and a digest of the
+ * token, so a token verified against one key set is never taken as verified against another.
+ *
+ * <p>This will ensure that the token hasn't been tampered with.
+ */
+public class TokenSignatureValidator {
+
+    public static LoadingCache<String, JWKSet> jwks = CacheBuilder.newBuilder()
+            .maximumSize(50000)
+            .expireAfterWrite(Duration.ofHours(1))
+            .build(new CacheLoader<String, JWKSet>() {
+                public JWKSet load(String urlStr) throws Exception {
+
+                    return loadJWKSet(urlStr);
+                }
+            });
+
+    // keyed by key set URL + token digest, see cacheKey()
+    public static Cache<Object, Object> validAccessKeys = CacheBuilder.newBuilder()
+            .maximumSize(50000)
+            .expireAfterWrite(Duration.ofHours(1))
+            .build();
+
+    JwtConfiguration jwtHeadersConfig;
+
+    public static JWKSet loadJWKSet(String urlStr) throws Exception {
+        URL url = new URL(urlStr);
+        try (var stream = url.openStream()) {
+            return JWKSet.load(stream);
+        }
+    }
+
+    public TokenSignatureValidator(JwtConfiguration config) {
+        jwtHeadersConfig = config;
+    }
+
+    public void validate(String accessToken) throws Exception {
+        if (!jwtHeadersConfig.isValidateTokenSignature()) return; // don't validate
+
+        String cacheKey = cacheKey(accessToken);
+        if (validAccessKeys.getIfPresent(cacheKey) != null) return; // already verified against this key set
+
+        JWSObject jwsToken = JWSObject.parse(accessToken);
+        String keyId = jwsToken.getHeader().getKeyID();
+
+        var publicKeys = jwks.get(jwtHeadersConfig.getValidateTokenSignatureURL());
+
+        RSAKey rsaKey = (RSAKey) publicKeys.getKeyByKeyId(keyId);
+        validateSignature(rsaKey, jwsToken);
+
+        // its good - put in cache, so we don't do the signature validation all the time.
+        validAccessKeys.put(cacheKey, Boolean.TRUE);
+    }
+
+    private String cacheKey(String accessToken) {
+        return TokenCacheKey.of(String.valueOf(jwtHeadersConfig.getValidateTokenSignatureURL()), accessToken);
+    }
+
+    /**
+     * Given a publickey and a (parsed) token, verify that the signature is correct. Throws if the signature is bad.
+     *
+     * @param rsaPublicKey Public key used to validate token signature
+     * @param token three part token
+     * @throws Exception
+     */
+    public void validateSignature(RSAKey rsaPublicKey, JWSObject token) throws Exception {
+
+        JWSVerifier verifier = new RSASSAVerifier(rsaPublicKey);
+
+        var valid = token.verify(verifier);
+        if (!valid) {
+            throw new Exception("Could not verify signature of the JWT with the given RSA Public Key");
+        }
+    }
+}

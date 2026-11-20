@@ -1,0 +1,247 @@
+# Caching defaults
+
+The Caching Defaults page shows the global configuration options for the tile caching functionality in GeoServer, an embedded GeoWebCache.
+
+## GWC Provided Services
+
+In addition to the GeoServer endpoints, GeoWebCache provides other endpoints for OGC services. For example, the GeoServer WMS endpoint is available at:
+
+    http://GEOSERVER_URL/wms?...
+
+The GeoWebCache WMS endpoint is:
+
+    http://GEOSERVER_URL/gwc/service/wms?...
+
+![](img/defaults_services.png)
+
+*Provided services*
+
+The following settings describe the different services that can be enabled with GeoWebCache.
+
+### Enable direct integration with GeoServer WMS
+
+Direct integration allows WMS requests served through GeoServer to be cached as if they were received and processed by GeoWebCache. This provides all the advantages of using a tile server while still employing the more-flexible GeoServer WMS as a fallback. See the section on [Using GeoWebCache](../using.md) for more details about this feature.
+
+With direct integration, tile caching is enabled for all standard WMS requests that contain the `tiled=true` parameter and conform to all required parameters.
+
+This setting is disabled by default. When enabling this option, it is a good idea to also turn on [Disk Quotas](diskquotas.md) as well, to prevent unbounded growth of the stored tiles.
+
+#### Explicitly require TILED Parameter
+
+When this parameter is checked direct WMS integration requires that the `tiled=true` parameter be set in all requests that will be cached. If this parameter is unchecked all incoming requests will be considered for caching, the request must still conform to all required parameters.
+
+### Enable WMS-C Service
+
+Enables the Cached Web Map Service (WMS-C) service. When this setting is enabled, GeoWebCache will respond to its own WMS-C endpoint:
+
+    http://GEOSERVER_URL/gwc/service/wms?SERVICE=WMS&VERSION=1.1.1&TILED=true&...
+
+When the service is disabled, calls to the capabilities document will return a `Service is disabled` message.
+
+### Enable TMS Service
+
+Enables the Tiled Map Service (TMS) endpoint in GeoWebCache. With the TMS service, GeoWebCache will respond to its own TMS endpoint:
+
+    http://GEOSERVER/URL/gwc/service/tms/1.0.0
+
+When the service is disabled, calls to the capabilities document will return a `Service is disabled` message.
+
+### Enable WMTS Service
+
+Enables the Web Map Tiled Service (WMTS) endpoint in GeoWebCache. When this setting is enabled, GeoWebCache will respond to its own WMTS endpoint:
+
+    http://GEOSERVER/URL/gwc/service/wmts?...
+
+When the service is disabled, calls to the capabilities document will return a `Service is disabled` message.
+
+HTTP RESTful API is available through the existing GWC integration allowing clients to retrieve the following resources:
+
+- capabilities document
+- tile
+- feature info
+
+For more information read [GWC WMTS documentation](https://geowebcache.osgeo.org/docs/current/services/wmts.md).
+
+### Enable Data Security
+
+Enables the [GeoServer Data Security](../config.md#gwc_data_security) in the embedded GeoWebCache.
+
+### Metatiling threads count
+
+This setting determines the number of threads that will be used to encode and save metatiles. By default, a user requested tile will be encoded on main request thread and immediately returned, but the remaining tiles will be encoded and saved on asynchronous threads to decrease latency experienced by the user.
+
+Possible values for this setting:
+
+- **unset**, which will use a default thread pool size, equal to 2 times the number of cores
+- **0**, which will disable concurrency and all tiles belonging to the metatile will be encoded/saved on the main request thread
+- **a positive integer**, which will set the number of threads to the specified value
+
+## Default Caching Options for GeoServer Layers
+
+This section describes the configuration of the various defaults and other global options for the tile cache in GeoServer.
+
+![](img/defaults_options.png)
+
+*Default caching options*
+
+### Automatically configure a GeoWebCache layer for each new layer or layer group
+
+This setting, enabled by default, determines how layers in GeoServer are handled via the embedded GeoWebCache. When this setting is enabled, an entry in the GeoWebCache layer listing will be created whenever a new layer or layer group is published in GeoServer. Use this setting to keep the GeoWebCache catalog in sync. (This is enabled by default.)
+
+### Enable multi-layer tile caching
+
+By default, GeoWebCache only caches a tiled `GetMap` request that names a single layer: a request whose `LAYERS` parameter lists more than one layer (a coalesced request) is always rendered live and never cached. When this setting is enabled, GeoServer instead caches each layer of a coalesced request independently, using its existing per-layer tile cache, and combines the cached tiles into the final image.
+
+Each member layer is still subject to the usual caching requirements (cacheable parameters, matching gridset, and so on); a member that does not qualify falls back to a live render for that member only, spliced into the result. This includes a member whose cached extent, or cached zoom levels, do not reach the requested tile: layers with different bounding boxes can be mixed freely, and near the edge of a narrower member only that member is rendered live, while the wider ones are still served from their caches. The whole request falls back to a live combined render, exactly as if this setting were disabled, when:
+
+- the request is not tiled
+- any member's style draws labels, or applies compositing/blending, at the requested scale (these effects depend on the full layer stack and cannot be reproduced from independently-cached tiles);
+- combining the member tiles would exceed the configured maximum WMS request memory.
+
+Only transparent `image/png` and `image/png8` requests are handled: any other format renders live and is not cached. It is to be noted that `image/png8` is served with a lower quality than a live render of the same request, because each member is quantized to its own 256 color palette with fully on/off transparency when it is cached, and the combined image is then quantized a second time. In particular, antialiased edges and semi-transparent fills in the lower layers of the stack are lost. Request `image/png` instead where this matters.
+
+This setting is disabled by default.
+
+A layer group named in `LAYERS` alongside anything else does not use the group's own tile cache:
+
+- `LAYERS=groupA` (a single layer group, no comma) is not a coalesced request, so this setting does not apply to it: it uses the group's own tile cache directly.
+- `LAYERS=groupA,layerB` (a layer group combined with anything else) is a coalesced request, and the group is resolved to its own member layers before this setting's logic runs: `groupA`'s layers are then cached and stacked individually, each under its own name, using their own caches rather than the group's.
+- The exception is a request that also carries per-layer parameters (`CQL_FILTER`, `STYLES`, `FILTER`, `SORTBY`, `INTERPOLATIONS`, `VIEWPARAMS`), since those are given one value per entry in `LAYERS` and can no longer be matched to the layers a group resolved to. Such a request renders live and is not cached, exactly as if this setting were disabled. A group holding a single layer resolves without changing the layer count, so it keeps working even with these parameters.
+
+How much this setting speeds up a coalesced request depends on the cost of rendering each member versus the cost of reading and decoding its cached PNG tile. The gain is largest when a member's data comes from a slow or contended source, such as a database or a remote service, where fetching and rendering the data is more expensive than reading a small PNG from disk and decoding it. For members backed by simple, fast-rendering data (for example, a small vector layer with a plain style, or a raster already stored as tiles), the gain shrinks, since PNG decoding and disk I/O may cost more relative to the render itself; a cache miss still falls back to a live render for that member, so for cheap-to-render members the setting is simply less beneficial. It is to be noted that a member that can never be served from its cache for a given tile, such as one whose cached extent does not reach it, is live rendered on every request, on top of reading, decoding and re-encoding the other members. Requests for these tiles keep reporting a partial cache hit in the `geowebcache-cache-result` response header, since the missing member never becomes cacheable.
+
+Each coalesced request also writes into the same per-layer tile caches used by ordinary single-layer requests, so enabling this setting makes those caches fill up faster than before.
+
+### Automatically cache non-default styles
+
+By default, only requests using the default style for a given layer will be cached. When this setting is enabled, all requests for a given layer, even those that use a non-standard style will be cached. Disabling this may be useful in situations where disk space is an issue, or when only one default style is important.
+
+### Default metatile size
+
+A metatile is several tiles combined into a larger one. This larger metatile is generated and then subdivided before being served back (and cached) as standard tiles. The advantage of using metatiling is in situations where a label or geometry lies on a boundary of a tile, which may be truncated or altered. With metatiling, these tile edge issues are greatly reduced.
+
+Moreover, with metatiling, the overall time it takes to seed the cache is reduced in most cases, when compared with rendering a full map with single tiles. In fact, using larger metatiling factors is a good way to reduce the time spent in seeding the cache.
+
+The disadvantage of metatiling is that at large sizes, memory consumption can be an issue.
+
+The size of the default metatile can be adjusted here. By default, GeoServer sets a metatile size of **4x4**, which strikes a balance between performance, memory usage, and rendering accuracy.
+
+### Metatiling threads
+
+After a metatile (see above) is produced, it is then split into a total of 16 individual tiles to be encoded and saved to the cache. By default, a user requested tile will be encoded and saved on the main request thread but the remaining tiles will be encoded and saved on asynchronous threads to decrease latency experienced by the user.
+
+Leaving this value blank will use a default thread pool size, equal to 2 times the number of cores. Setting to 0 will disable concurrency and all tiles belonging to the metatile will be encoded/saved on the main request thread.
+
+This setting only affects user requests and is not used when seeding (seeding will encode an entire metatile on each seeding thread).
+
+### Default gutter size
+
+The gutter size sets the amount of extra space (in pixels) used when generating a tile. Use this in conjunction with metatiles to reduce problems with labels and features not being rendered incorrectly due to being on a tile boundary.
+
+### Default Cache Formats
+
+This setting determines the default image formats that can be cached when tiled requests are made. There are four image formats that can be used when saving tiles:
+
+- PNG (24-bit PNG)
+- PNG8 (8-bit PNG)
+- JPEG
+- GIF
+
+The default settings are subdivided into vector layers, raster layers, and layer groups. You may select any of the above four formats for each of the three types of layers. Any requests that fall outside of these layer/format combinations will not be cached if sent through GeoServer, and will return an error if sent to the GeoWebCache endpoints.
+
+These defaults can be overwritten on a per-layer basis when [editing the layer properties](../../data/webadmin/layers.md).
+
+![](img/defaults_formats.png)
+
+*Default image formats*
+
+### Skip caching on dimension warnings
+
+WMS dimension handling can be complex, with ability to return tiles where the specified time was not a match, or when the request contained no time at all. This may not be a good match for tile caching, as it breaks the unique link between URL and tile content.
+
+The following settings allow to disable caching when a WMS dimension warning is issued:
+
+![](img/skipCacheWarnings.png)
+
+*Skip caching on cache warnings*
+
+The best settings depend on the type of dataset and disk-quota configurations:
+
+- For **static datasets with dimensions**, the default value skip could be removed, as it's going to generate at most one copy of the tiles. The nearest match and failed nearest could be cached if there is a disk quota (to speed up clients that repeatedly fail to perform an exact time match), but it's best not to cache it if there is no disk quota, as the mismatches can be potentially infinite, leading to an uncontrolled growth of the cache.
+- For a **datasets growing over time**, it's better to disable caching on the default value, as it's often the "latest", that is, the most recently added to the dataset. This means the tiles contents change based on when they are asked for. The considerations for nearest and failed matches are the same as for the static datasets.
+
+Caution is advised if the data ingestion might happen to skip some time/elevation values, to fill them only at a later time. In this case, nearest matches could cause the system to cache a tile for a nearby time value, which would hide the actual values if they get ingested at a later time.
+
+### Default Cached Gridsets
+
+This section shows the gridsets that will be automatically configured for cached layers. While there are some pre-configured gridsets available, only two are enabled by default. These correspond to the most common and universal cases:
+
+- EPSG:4326 (geographic) with 22 maximum zoom levels and 256x256 pixel tiles
+- EPSG:900913 (spherical Mercator) with 31 maximum zoom levels and 256x256 pixel tiles
+
+![](img/defaults_gridsets.png)
+
+*Default gridsets*
+
+To add a pre-existing grid set, select it from the **Add default grid set** menu, and click the Add icon (green circle with plus sign).
+
+![](img/addexistinggridset.png)
+
+*Adding an existing gridset to the list of defaults*
+
+These definitions are described in more detail on the [Gridsets](gridsets.md) page.
+
+## In-memory tile cache
+
+The in-memory tile cache keeps tiles in memory, in front of or instead of the layer blob store (see passthrough below), with each tile expiring on its own after a configurable time. Depending on the backend, it is shared by every node of a GeoServer cluster. It is meant for layers whose data is rebuilt every few minutes, where a tile is worth keeping only for that time. In particular, on a cluster where each node caches to its own disk, the same tile is otherwise rendered once per node, and the copies on disk outlive the data they were drawn from.
+
+The cache is disabled by default, and only the layers that opt in use it: check **Use the in-memory tile cache for this layer** in the layer **Tile Caching** tab (see [Configuring a cached layer](layers.md#configuring-a-cached-layer)). The settings are saved in the `<memoryCache>` element of `geowebcache.xml`, and can also be read and changed through the [REST API](../rest/memorycache.md).
+
+**On a GeoServer cluster, each node reads these settings when it starts or reloads**: after changing them on one node, reload (for example through `/rest/reload`) or restart every other node. It is to be noted that until then, another node saving any GeoWebCache setting, such as a blob store or a gridset, writes its old in-memory tile cache settings back over the change. The per-layer checkbox does not need this, it reaches the other nodes on its own.
+
+### Enable the in-memory tile cache
+
+Turns the cache on for every layer that opts in. When off, those layers use their blob store as usual.
+
+### Also store tiles in the layer blob store (passthrough)
+
+When checked (the default), the cache sits in front of the layer blob store: tiles are written to both, a tile missing from the cache is read from the blob store, and tiles survive a restart or a cache outage. Disk quota counts the tiles in the blob store.
+
+When unchecked, tiles live in the cache only. If the cache becomes unreachable, every request is rendered again. Truncating an area or a gridset then leaves the blob store alone, so tiles it still holds from before are kept: truncate the whole layer before checking this option again.
+
+**Even with passthrough off, the layer blob store keeps the layer metadata and the parameter mappings** that truncation by style, parameters or bounding box relies on. On a cluster it must therefore be shared by every node, for example an S3 or Azure blob store, not a local file blob store. If the blob store cannot be written, tiles are still cached and served, and the failure is logged once: until a later write succeeds, truncating by style, parameters or bounding box does not remove the tiles cached meanwhile, while truncating the whole layer still does.
+
+### Default time to live of a tile in memory
+
+The time, in seconds, a tile stays in the cache when its layer has no **Expire server cache after n seconds** setting, 300 by default. **A layer that sets one keeps its tiles for exactly that long**, whether shorter or longer than this value, as a tile is rendered again once it expires anyway. A tile read from the blob store with passthrough on is kept for what is left of the layer expiry, and at most this value, so that a read racing a truncate cannot bring back a removed tile for longer than that.
+
+Set the expire server cache of each cached layer to its own refresh interval. For example, with one layer rebuilt every 2 minutes and one every hour, use 120 and 3600 as layer expiries.
+
+Remember to check the layer **Expire client cache after n seconds** setting too, so browsers do not keep a tile longer than its data is valid.
+
+### Statistics log interval
+
+Every that many seconds, GeoServer logs one line per layer that received requests: reads by result, hit ratio and failed writes. Counts are per node, add them up across nodes for the cluster view. Set to 0 to turn the lines off.
+
+### Backend
+
+Where the tiles are kept. GeoServer provides:
+
+![](img/memorycache-heap.png)
+
+*In-memory tile cache with the heap backend*
+
+- **Heap (single node)**: tiles are kept in the memory of each GeoServer node, up to **Maximum size on each node, in MB** (64 by default). The cache is not shared, and a truncate on one node does not reach the others, so use it on a single node only. Saving this page empties it, unless the in-memory tile cache settings are left unchanged.
+
+Other backends are added by extensions, such as the [GWC Hazelcast tile cache plugin](../../community/gwc-hazelcast/index.md), which shares the tiles among all the nodes of a cluster.
+
+When the configured backend cannot start, or its extension is removed, GeoServer still starts: the cache is unusable, with the reason in the log, and the layers are served as with an unreachable cache (see below), except that truncates still run on the blob store. With the extension removed, the page shows no backend selected, and saving it keeps the settings of the missing backend, unless another one is picked, so that installing the extension again restores them.
+
+### Behavior on failures and truncation
+
+- An unreachable cache never fails a request: a failed read is treated as a missing tile, a failed write is dropped.
+- A cache that answers too slowly counts as down, as an unreachable one does. How long a request waits for it depends on the backend, a couple of seconds at most with the Hazelcast plugin.
+- While the cache is down, requests do not wait for it: each node tries it again from time to time, from every second at the start of the outage up to every 30 seconds for long ones. A cache that keeps going down and up again is logged once with its error, then with a short "unreachable again" line each time.
+- A truncate of a layer using the cache removes its tiles from both the cache and the blob store. **While the cache is down, or when it fails to remove the tiles, the truncate is not run at all**, blob store included, and reports an error: retry it once the cache is back, since the tiles cached before the outage are served again when it recovers. It is to be noted that this applies to every truncate, the ones GeoServer runs on a style or layer change included. Deletes of single tiles or bounding boxes, as disk quota runs, are the exception with passthrough on: they still delete from the blob store, so that disk quota frees space during a long outage, and the copies cached before it are served until they expire. If the cache fails only after the blob store was truncated, an error is reported and cached tiles may stay stale up to their time to live.
+- Removing a layer always deletes its tiles from the blob store, even with the cache down; its cached tiles then expire with their time to live. Layers not using the cache are truncated in the blob store as usual, whatever the state of the cache.
+- With passthrough on, S3 and Azure blob stores delete tiles in the background, so a truncated tile can come back into the cache until the deletion ends, and then stay for up to its time to live.

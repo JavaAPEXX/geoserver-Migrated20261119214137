@@ -1,0 +1,77 @@
+/* (c) 2017 Open Source Geospatial Foundation - all rights reserved
+ * This code is licensed under the GPL 2.0 license, available at the root
+ * application directory.
+ */
+// Java 21 & JUnit 5 Jupiter Test Execution Baseline
+package org.geoserver.csw.store.internal;
+
+import static org.custommonkey.xmlunit.XMLAssert.assertXpathEvaluatesTo;
+import static org.custommonkey.xmlunit.XMLAssert.assertXpathExists;
+
+import org.geoserver.test.DevModeEntityResolver;
+import org.geoserver.util.EntityResolverProvider;
+import org.geotools.util.NullEntityResolver;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.w3c.dom.Document;
+
+/** @author Niels Charlier */
+public class DescribeRecordTest extends CSWInternalTestSupport {
+
+    @BeforeEach
+    public void setUp() throws Exception {
+        EntityResolverProvider.setEntityResolver(NullEntityResolver.INSTANCE);
+    }
+
+    @AfterEach
+    public void tearDown() throws Exception {
+        EntityResolverProvider.setEntityResolver(DevModeEntityResolver.INSTANCE);
+    }
+
+    @Test
+    public void testBasicGetLocalSchemaRecord() throws Exception {
+        Document dom = getAsDOM("csw?service=CSW&version=2.0.2&request=DescribeRecord&typeName=csw:Record");
+        checkValidationErrors(dom);
+        // print(dom);
+
+        assertXpathEvaluatesTo("1", "count(//csw:SchemaComponent)", dom);
+        assertXpathExists(
+                "//csw:SchemaComponent/xsd:schema[@targetNamespace='http://www.opengis.net/cat/csw/2.0.2']", dom);
+
+        assertXpathEvaluatesTo("1", "count(//xsd:element[@name = 'BriefRecord'])", dom);
+        assertXpathEvaluatesTo("1", "count(//xsd:element[@name = 'SummaryRecord'])", dom);
+        assertXpathEvaluatesTo("1", "count(//xsd:element[@name = 'Record'])", dom);
+        assertXpathEvaluatesTo(
+                "http://localhost:8080/geoserver/schemas/csw/2.0.2/rec-dcterms.xsd",
+                "//xsd:import[@namespace = 'http://purl.org/dc/terms/']/@schemaLocation",
+                dom);
+    }
+
+    @Test
+    public void testBasicGetLocalSchemaMetaData() throws Exception {
+        Document dom = getAsDOM("csw?service=CSW&version=2.0.2&request=DescribeRecord&typeName=gmd:MD_Metadata");
+        checkValidationErrors(dom);
+        // print(dom);
+
+        assertXpathEvaluatesTo("2", "count(//csw:SchemaComponent)", dom);
+        assertXpathExists("//csw:SchemaComponent/xsd:schema[@targetNamespace='http://www.isotc211.org/2005/gmd']", dom);
+        assertXpathExists("//csw:SchemaComponent/xsd:schema[@targetNamespace='http://www.isotc211.org/2005/srv']", dom);
+
+        assertXpathExists("//xs:element[@name='AbstractMD_Identification']", dom);
+        assertXpathExists("//xs:element[@name='MD_Keywords']", dom);
+    }
+
+    @Test
+    public void testBasicGetLocalSchemaAll() throws Exception {
+        Document dom = getAsDOM("csw?service=CSW&version=2.0.2&request=DescribeRecord");
+        checkValidationErrors(dom);
+        // print(dom);
+
+        assertXpathEvaluatesTo("3", "count(//csw:SchemaComponent)", dom);
+        assertXpathExists(
+                "//csw:SchemaComponent/xsd:schema[@targetNamespace='http://www.opengis.net/cat/csw/2.0.2']", dom);
+        assertXpathExists("//csw:SchemaComponent/xsd:schema[@targetNamespace='http://www.isotc211.org/2005/gmd']", dom);
+        assertXpathExists("//csw:SchemaComponent/xsd:schema[@targetNamespace='http://www.isotc211.org/2005/srv']", dom);
+    }
+}

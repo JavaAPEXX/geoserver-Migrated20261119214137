@@ -1,0 +1,85 @@
+/* (c) 2023 Open Source Geospatial Foundation - all rights reserved
+ * This code is licensed under the GPL 2.0 license, available at the root
+ * application directory.
+ *
+ * Original from GeoServer 2.24-SNAPSHOT under GPL 2.0 license
+ */
+// Java 21 & JUnit 5 Jupiter Test Execution Baseline
+package org.geoserver.acl.plugin.accessmanager;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+
+import java.util.Arrays;
+import java.util.Set;
+import org.geoserver.acl.authorization.AccessRequest;
+import org.geoserver.ows.Request;
+import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
+public class AuthorizationRequestBuilderTest {
+
+    @Test
+    public void testIPv6Address() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("[0:0:0:0:0:0:0:1]");
+        String sourceAddress = AuthorizationRequestBuilder.getSourceAddress(request);
+        // assert that address does not contain any brackets
+        assertFalse(sourceAddress.matches("\\[(.*)\\]"));
+    }
+
+    @Test
+    public void testBuildFromAuthentication() {
+        AccessRequest request = AuthorizationRequestBuilder.data()
+                .user(getAuthentication())
+                .request(getRequest())
+                .layer("states")
+                .workspace("topp")
+                .build();
+
+        assertEquals("testuser", request.user());
+        assertEquals(Set.of("ROLE_ONE", "ROLE_TWO"), request.roles());
+        assertEquals(getAuthentication().getName(), request.user());
+        assertEquals("WMS", request.service());
+        assertEquals("GETMAP", request.request());
+        assertEquals("topp", request.workspace());
+        assertEquals("states", request.layer());
+        assertNull(request.sourceAddress());
+        assertNull(request.subfield());
+    }
+
+    @Test
+    public void testDefaults() {
+        AccessRequest request = AuthorizationRequestBuilder.data()
+                .user(getAuthentication())
+                .request(getRequest())
+                .build();
+
+        assertEquals(Set.of("ROLE_ONE", "ROLE_TWO"), request.roles());
+        assertEquals(getAuthentication().getName(), request.user());
+        assertEquals("WMS", request.service());
+        assertEquals("GETMAP", request.request());
+        // no value provided should be set to default null
+        assertNull(request.layer());
+        assertNull(request.workspace());
+    }
+
+    private Request getRequest() {
+        Request request = new Request();
+        request.setService("WMS");
+        request.setRequest("GETMAP");
+        return request;
+    }
+
+    private Authentication getAuthentication() {
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                "testuser",
+                "password",
+                Arrays.asList(new SimpleGrantedAuthority("ROLE_ONE"), new SimpleGrantedAuthority("ROLE_TWO")));
+        return authentication;
+    }
+}

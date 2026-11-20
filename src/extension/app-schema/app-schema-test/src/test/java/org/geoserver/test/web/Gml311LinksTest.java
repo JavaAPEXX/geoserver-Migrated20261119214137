@@ -1,0 +1,51 @@
+/* (c) 2015 - 2016 Open Source Geospatial Foundation - all rights reserved
+ * This code is licensed under the GPL 2.0 license, available at the root
+ * application directory.
+ */
+
+// Java 21 & JUnit 5 Jupiter Test Execution Baseline
+package org.geoserver.test.web;
+
+import java.util.Arrays;
+import org.geoserver.data.test.SystemTestData;
+import org.geoserver.test.DevModeEntityResolver;
+import org.geoserver.test.FeatureChainingMockData;
+import org.geoserver.util.EntityResolverProvider;
+import org.geotools.util.NullEntityResolver;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.jupiter.api.Test;
+
+public class Gml311LinksTest extends AbstractMapPreviewPageTest {
+
+    public Gml311LinksTest() {
+        super(
+                Arrays.asList(
+                        "http://localhost/context/gsml/ows?service=WFS&amp;version=1.1.0&amp;request=GetFeature&amp;typeName=gsml%3AMappedFeature&amp;outputFormat=gml3&amp;maxFeatures=50",
+                        "http://localhost/context/gsml/ows?service=WFS&amp;version=1.1.0&amp;request=GetFeature&amp;typeName=gsml%3AGeologicUnit&amp;outputFormat=gml3&amp;maxFeatures=50",
+                        "http://localhost/context/ex/ows?service=WFS&amp;version=1.1.0&amp;request=GetFeature&amp;typeName=ex%3AFirstParentFeature&amp;outputFormat=gml3&amp;maxFeatures=50",
+                        "http://localhost/context/ex/ows?service=WFS&amp;version=1.1.0&amp;request=GetFeature&amp;typeName=ex%3ASecondParentFeature&amp;outputFormat=gml3&amp;maxFeatures=50",
+                        "http://localhost/context/ex/ows?service=WFS&amp;version=1.1.0&amp;request=GetFeature&amp;typeName=ex%3AParentFeature&amp;outputFormat=gml3&amp;maxFeatures=50",
+                        "http://localhost/context/om/ows?service=WFS&amp;version=1.1.0&amp;request=GetFeature&amp;typeName=om%3AObservation&amp;outputFormat=gml3&amp;maxFeatures=50"));
+    }
+
+    @BeforeClass
+    public static void setUpClass() throws Exception {
+        EntityResolverProvider.setEntityResolver(NullEntityResolver.INSTANCE);
+    }
+
+    @AfterClass
+    public static void tearDownClass() throws Exception {
+        EntityResolverProvider.setEntityResolver(DevModeEntityResolver.INSTANCE);
+    }
+
+    @Override
+    protected SystemTestData createTestData() throws Exception {
+        return new FeatureChainingMockData();
+    }
+
+    @Test
+    public void testGml311Links() {
+        super.testAppSchemaGmlLinks();
+    }
+}

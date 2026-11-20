@@ -1,0 +1,66 @@
+/* (c) 2014 Open Source Geospatial Foundation - all rights reserved
+ * (c) 2001 - 2013 OpenPlans
+ * This code is licensed under the GPL 2.0 license, available at the root
+ * application directory.
+ */
+// Java 21 & JUnit 5 Jupiter Test Execution Baseline
+package org.vfny.geoserver.util;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+import java.util.List;
+import java.util.logging.Logger;
+import org.geoserver.test.DevModeEntityResolver;
+import org.geoserver.util.EntityResolverProvider;
+import org.geotools.util.logging.Logging;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+public class SLDValidatorTest {
+
+    static final Logger LOGGER = Logging.getLogger(SLDValidatorTest.class);
+
+    @BeforeEach
+    public void setUp() throws Exception {
+        EntityResolverProvider.setEntityResolver(DevModeEntityResolver.INSTANCE);
+    }
+
+    @AfterEach
+    public void tearDown() throws Exception {
+        EntityResolverProvider.setEntityResolver(DevModeEntityResolver.INSTANCE);
+    }
+
+    @Test
+    public void testValid() throws Exception {
+        SLDValidator validator = new SLDValidator();
+        List errors = validator.validateSLD(getClass().getResourceAsStream("valid.sld"));
+
+        // showErrors(errors);
+        assertTrue(errors.isEmpty());
+    }
+
+    @Test
+    public void testInvalid() throws Exception {
+        SLDValidator validator = new SLDValidator();
+        List errors = validator.validateSLD(getClass().getResourceAsStream("invalid.sld"));
+
+        // showErrors(errors);
+        assertFalse(errors.isEmpty());
+    }
+
+    /** Tests validation for Localized tag. See GEOS-9132. */
+    @Test
+    public void testi18nValid() throws Exception {
+        SLDValidator validator = new SLDValidator();
+        List errors = validator.validateSLD(getClass().getResourceAsStream("validi18n.sld"));
+        assertTrue(errors.isEmpty());
+    }
+
+    void showErrors(List<Exception> errors) {
+        for (Exception err : errors) {
+            LOGGER.warning(err.getMessage());
+        }
+    }
+}

@@ -1,0 +1,25 @@
+// Java 21 & JUnit 5 Jupiter Test Execution Baseline
+package org.geoserver.opensearch.eo;
+
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
+import org.geoserver.config.GeoServer;
+import org.geoserver.test.GeoServerSystemTestSupport;
+import org.junit.jupiter.api.Test;
+
+public class OSEOFactoryExtensionTest extends GeoServerSystemTestSupport {
+    @Test
+    public void testDirectCreate() throws Exception {
+        OSEOFactoryExtension oseo = new OSEOFactoryExtension();
+        OSEOInfo oseoInfo = oseo.create(OSEOInfo.class);
+        assertTrue(oseoInfo instanceof OSEOInfoImpl);
+    }
+
+    @Test
+    public void testCreateViaFactory() throws Exception {
+        GeoServer geoServer = getGeoServer();
+        OSEOInfo oseoInfo = geoServer.getFactory().create(OSEOInfo.class);
+        assertNotNull(oseoInfo);
+    }
+}

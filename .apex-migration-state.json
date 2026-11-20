@@ -1,0 +1,7 @@
+{
+  "job_id": "job_11291d955e9a",
+  "sourceRepoUrl": "https://github.com/geoserver/geoserver",
+  "targetJavaVersion": "21.0.12.1",
+  "status": "MIGRATION_CHECKPOINT",
+  "migration_date": ""
+}

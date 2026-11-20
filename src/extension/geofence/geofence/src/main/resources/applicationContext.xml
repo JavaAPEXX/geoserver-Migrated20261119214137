@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="
+        http://www.springframework.org/schema/beans https://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+  <!--
+    Copyright 2017 Open Source Geospatial Foundation. All rights reserved.
+    This code is licensed under the GPL 2.0 license, available at the root application
+    directory.
+
+    All bean wiring for this module lives in annotated Java classes (@Component/@Configuration), discovered via the
+    component scans below. See GeoFenceSpringConfig for the beans that need literal arguments, property-placeholder
+    resolution, or externally-defined GeoServer beans.
+  -->
+
+    <context:component-scan base-package="org.geoserver.geofence"/>
+    <!-- Embedded engine's @Configuration classes only (their own lazy @ComponentScan pulls in the rest);
+         kept here rather than in geofence-server to preserve @EnableTransactionManagement's processing order. -->
+    <context:component-scan base-package="org.geofence.core.services.config, org.geofence.core.db.config"/>
+
+</beans>

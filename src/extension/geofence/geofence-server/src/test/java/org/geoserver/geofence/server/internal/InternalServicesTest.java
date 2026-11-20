@@ -1,0 +1,93 @@
+/* (c) 2015 Open Source Geospatial Foundation - all rights reserved
+ * This code is licensed under the GPL 2.0 license, available at the root
+ * application directory.
+ */
+// Java 21 & JUnit 5 Jupiter Test Execution Baseline
+package org.geoserver.geofence.server.internal;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import org.geofence.core.model.Rule;
+import org.geofence.core.model.RuleLimits;
+import org.geofence.core.model.enums.CatalogMode;
+import org.geofence.core.model.enums.GrantType;
+import org.geofence.core.services.RuleAdminService;
+import org.geofence.core.services.RuleReaderService;
+import org.geofence.core.services.RuleReaderServiceImpl;
+import org.geofence.core.services.dto.AccessInfo;
+import org.geofence.core.services.dto.RuleFilter;
+import org.geofence.core.services.dto.ShortRule;
+import org.geoserver.geofence.GeofenceBaseTest;
+import org.geoserver.geofence.server.GeofenceDatabaseRule;
+import org.geoserver.geofence.services.RuleReaderServiceFactory;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.ClassRule;
+import org.junit.jupiter.api.Test;
+import org.locationtech.jts.geom.MultiPolygon;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKTReader;
+
+/** @author Niels Charlier */
+public class InternalServicesTest extends GeofenceBaseTest {
+
+    @ClassRule
+    public static final GeofenceDatabaseRule database = new GeofenceDatabaseRule();
+
+    protected RuleAdminService adminService;
+
+    protected RuleReaderService geofenceService;
+
+    @BeforeEach
+    public void initGeoFenceControllers() {
+        adminService = (RuleAdminService) applicationContext.getBean("ruleAdminService");
+        geofenceService = applicationContext
+                .getBean("ruleReaderBackendFactory", RuleReaderServiceFactory.class)
+                .getService();
+
+        if (adminService.getCountAll() > 0) {
+            for (ShortRule r : adminService.getAll()) {
+                adminService.delete(r.getId());
+            }
+        }
+
+        Rule citeRule = new Rule(0, "cite", null, null, null, "wms", null, null, "cite", null, GrantType.ALLOW);
+        Rule sfRule = new Rule(1, "cite", null, null, null, "wms", null, null, "sf", null, GrantType.ALLOW);
+        adminService.insert(citeRule);
+        adminService.insert(sfRule);
+    }
+
+    @Test
+    public void testConfigurationInternal() {
+        assertEquals("ruleReaderServiceImpl", configManager.getConfiguration().getRuleReaderBackend());
+        if (geofenceService != null) {
+            assertTrue(geofenceService instanceof RuleReaderServiceImpl);
+        }
+    }
+
+    @Test
+    public void testAllowedAreaSRIDIsPreserved() throws ParseException {
+        // test that when retrieving an AccessInfo from the rule service,
+        // the original SRID is returned in the AllowedArea wkt representation.
+        Rule rule1 = new Rule(999, null, null, null, null, null, null, null, null, null, GrantType.ALLOW);
+        adminService.insert(rule1);
+
+        Rule rule2 = new Rule(0, null, null, null, null, null, null, null, null, "layerGroup", GrantType.LIMIT);
+        Long idRule2 = adminService.insert(rule2);
+        RuleLimits ruleLimits = new RuleLimits();
+        ruleLimits.setCatalogMode(CatalogMode.HIDE);
+        MultiPolygon mp = (MultiPolygon)
+                new WKTReader()
+                        .read(
+                                "MULTIPOLYGON(((0.0016139656066815888 -0.0006386457758059581,0.0019599705696027314 -0.0006386457758059581,0.0019599705696027314 -0.0008854090051601674,0.0016139656066815888 -0.0008854090051601674,0.0016139656066815888 -0.0006386457758059581)))");
+        mp.setSRID(3857);
+        ruleLimits.setAllowedArea(mp);
+        adminService.setLimits(idRule2, ruleLimits);
+
+        RuleFilter filter = new RuleFilter();
+        filter.setLayer("layerGroup");
+        AccessInfo accessInfo = geofenceService.getAccessInfo(filter);
+        String srid = accessInfo.getAreaWkt().split(";")[0].split("=")[1];
+        assertEquals("3857", srid);
+    }
+}
